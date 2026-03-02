@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "uboatsim"
+version = "0.1.0"
+description = "2D U-boat training simulator game"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+authors = [
+  { name = "David Lantos" }
+]
+
+dependencies = [
+  "PySide6>=6.6,<7",
+  "numpy>=1.26,<3",
+]
+
+[project.optional-dependencies]
+ml = [
+  "torch>=2.2",
+  "scikit-learn>=1.4",
+]
+
+dev = [
+  "pytest>=7,<9",
+  "pydantic>=2,<3",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

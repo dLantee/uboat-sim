@@ -1,0 +1,10 @@
+# Core runtime
+PySide6>=6.6,<7
+numpy>=1.26,<3
+
+# Optional but recommended
+pydantic>=2.0,<3       # scenario validation (optional but useful)
+python-dotenv>=1.0,<2  # environment config (optional)
+
+# Dev / testing
+pytest>=7,<9
