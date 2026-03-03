@@ -31,7 +31,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.timer = QtCore.QTimer(self)
         self.timer.setTimerType(QtCore.Qt.TimerType.PreciseTimer)
         self.timer.timeout.connect(self._on_tick)
-        self.timer.start(16)  # ~60 FPS
+        # self.timer.start(16)  # ~60 FPS
 
         # Basic key controls
         self._install_shortcuts()

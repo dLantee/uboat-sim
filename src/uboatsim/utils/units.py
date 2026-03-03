@@ -13,6 +13,7 @@ UI layer may convert to nautical miles, knots, degrees, etc.
 from __future__ import annotations
 import numpy as np
 from typing import Union
+from uboatsim.utils.math import Vec2
 
 Number = Union[float, np.ndarray]
 
@@ -96,6 +97,22 @@ def normalize_deg(angle_deg: Number) -> Number:
     Normalize angle to [0, 360)
     """
     return np.mod(angle_deg, 360.0)
+
+
+def vector_to_rad(vec: Vec2) -> float:
+    """
+    Convert a 2D vector to a heading angle in radians.
+    Nautical convention: 0 rad = North (+Y), π/2 = East (+X).
+    """
+    vx, vy = float(vec[0]), float(vec[1])
+    return float(np.arctan2(vx, vy))
+
+def rad_to_vector(angle_rad: Number) -> Vec2:
+    """
+    Convert a heading angle in radians to a 2D unit vector.
+    Nautical convention: 0 rad = North (+Y), π/2 = East (+X).
+    """
+    return np.array([np.sin(angle_rad), np.cos(angle_rad)], dtype=np.float64)
 
 
 # -----------------------------------------------------------------------------

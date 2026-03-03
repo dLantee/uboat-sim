@@ -9,6 +9,9 @@ from uboatsim.sim.entity import Submarine
 from .items.sub_item import SubItem
 from .items.overlays import RangeRingsOverlay, BearingLineOverlay
 
+from uboatsim.utils.units import knots_to_mps, deg_to_rad, vector_to_rad, rad_to_vector
+from ..utils.math import v2
+
 
 class RadarScene(QtWidgets.QGraphicsScene):
     """
@@ -71,7 +74,7 @@ class RadarScene(QtWidgets.QGraphicsScene):
         return None
 
     # -----------------
-    # Overlay interaction (bearing line tool)
+    # Overlay interaction (move to, bearing line tool)
     # -----------------
 
     def mousePressEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent) -> None:
@@ -82,6 +85,15 @@ class RadarScene(QtWidgets.QGraphicsScene):
             self.bearing_line.set_visible(True)
             event.accept()
             return
+        if event.button() == QtCore.Qt.MouseButton.RightButton:
+            # Set target position for player sub (if it exists)
+            player = self._get_player_sub()
+            if player:
+                p = event.scenePos()
+                offset = v2(p.x(), -p.y()) - player.kin.pos
+                player.set_course(vector_to_rad(offset))  # Negate Y: sim uses Y-up, Qt uses Y-down
+                event.accept()
+                return
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent) -> None:
