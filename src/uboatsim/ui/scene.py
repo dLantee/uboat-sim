@@ -4,13 +4,14 @@ from typing import Dict, Optional
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from uboatsim.sim.world import World
-from uboatsim.sim.entity import Submarine
+from uboatsim.sim.entity import Submarine, Ship
+from .items.ship_item import ShipItem
 
 from .items.sub_item import SubItem
 from .items.overlays import RangeRingsOverlay, BearingLineOverlay
 
 from uboatsim.utils.units import knots_to_mps, deg_to_rad, vector_to_rad, rad_to_vector
-from ..utils.math import v2
+from uboatsim.utils.math import v2
 
 
 class RadarScene(QtWidgets.QGraphicsScene):
@@ -25,6 +26,7 @@ class RadarScene(QtWidgets.QGraphicsScene):
 
         # World->Item mapping
         self._sub_items: Dict[str, SubItem] = {}
+        self._enemy_items: Dict[str, ShipItem] = {}
 
         # Overlays (drawn above entities)
         self.range_rings = RangeRingsOverlay()
@@ -56,6 +58,17 @@ class RadarScene(QtWidgets.QGraphicsScene):
                     self.addItem(item)
 
                 self._sub_items[e.eid].set_pose(
+                    x=e.kin.pos[0],
+                    y=-e.kin.pos[1],  # Negate Y: sim uses Y-up, Qt uses Y-down
+                    heading_rad=e.kin.heading,
+                )
+            if isinstance(e, Ship):
+                if e.eid not in self._enemy_items:
+                    item = ShipItem(eid=e.eid)
+                    self._enemy_items[e.eid] = item
+                    self.addItem(item)
+
+                self._enemy_items[e.eid].set_pose(
                     x=e.kin.pos[0],
                     y=-e.kin.pos[1],  # Negate Y: sim uses Y-up, Qt uses Y-down
                     heading_rad=e.kin.heading,
