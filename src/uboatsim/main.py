@@ -34,12 +34,21 @@ def build_demo_world() -> World:
     # Simple target ship (for now no ShipItem is implemented, but it will exist in sim)
     ship = Ship(eid="TRG-1")
     ship.set_pos(6000.0, 2000.0)
-    ship.set_speed(knots_to_mps(8.0))
+    ship.set_speed(knots_to_mps(6.0))
     ship.set_course(deg_to_rad(270.0))      # West
     # ship.set_course_speed(deg_to_rad(270.0), knots_to_mps(12.0))  # West
     world.add(ship)
 
     return world
+
+def trigger_events(world: World) -> None:
+    """Example event: after 10 seconds, change the ship's course and speed."""
+    # After 3 seconds, turn the ship west and speed up to 8 knots
+    if world.get_time() > 3.0:
+        world.get("U-47").set_course(deg_to_rad(70.0))
+        world.get("U-47").set_speed(knots_to_mps(12.0))
+    if world.get_time() > 6.0:
+        world.get("U-47").set_course(deg_to_rad(320.0))
 
 
 def main() -> None:
@@ -52,6 +61,9 @@ def main() -> None:
     window = MainWindow(world=world)
     window.resize(1280, 800)
     window.show()
+
+    # window.timer.timeout.connect(lambda: trigger_events(world))
+    window.timer.start(16)
 
     app.exec()
 
