@@ -2,7 +2,6 @@
 
 """
 import math
-from dataclasses import dataclass, field
 from typing import List, Tuple
 
 from PySide6 import QtCore, QtGui, QtWidgets
@@ -44,39 +43,6 @@ def vec_to_polar(p: QtCore.QPointF) -> Tuple[float, float]:
     r = math.hypot(x, y)
     deg = (math.degrees(math.atan2(x, -y))) % 360.0
     return r, deg
-
-
-@dataclass
-class TickSpec:
-    step_deg: float             # degrees between ticks (e.g. 1 for every degree)
-    long_every: int             # how many ticks between long ticks (e.g. 5 for long tick_specs every 5 degrees)
-    long_len: float             # length of long ticks in pixels
-    short_len: float            # length of short ticks in pixels
-    start_deg: float = 0.0      # starting angle for first tick (default: 0, i.e. 0° at "up" state screen)
-    end_deg: float = 360.0      # ending angle for last tick (default
-    pen_width: float = 1.0      # width of tick_specs lines in pixels
-    radial_offset: float = 0.0  # radial offset of ticks from ring edge in pixels (positive = outward)
-    reverse: bool = False       # If true, ticks point inward instead of outward. (Default: False)
-    color: QtGui.QColor = field(default_factory=lambda: QtGui.QColor(100, 100, 100))
-
-
-@dataclass
-class LabelSpec:
-    """LabelSpec is related to TickSpec by index. If label_every_long > 0, labels are drawn for every label_every_long'th long tick."""
-    step_num: float = 1.0       # number to increment for each label (e.g. 10 for labels every 10 degrees)
-    start_num: float = 0.0      # number to label at start_deg (default: 0)
-    label_every_long: int = 0   # how many long ticks between labels (e.g. 2 for label every 10 degrees if long ticks every 5 degrees)
-    radius: float | None = None # radius at which to place labels (if label_every_long > 0)
-    font_size: int = 12
-    bold: bool = False
-    color: QtGui.QColor = field(default_factory=lambda: QtGui.QColor(100, 100, 100))
-
-
-@dataclass
-class CircleSpec:
-    radius: float
-    pen_width: float = 1.0
-    color: QtGui.QColor = field(default_factory=lambda: QtGui.QColor(100, 100, 100))
 
 
 class OverLay(QtWidgets.QGraphicsItem):
@@ -163,6 +129,7 @@ class CircleOverlay(RadialOverlay):
         painter.setBrush(QtCore.Qt.BrushStyle.NoBrush)
         painter.drawEllipse(QtCore.QPointF(0, 0), self.radius, self.radius)
 
+
 class LabelRadialOverlay(RadialOverlay):
     """
     Simple labels at specified angles. Not a full ring, just individual labels.
@@ -231,6 +198,7 @@ class TickRadialOverlay(RadialOverlay):
             if self.reversed:
                 p1 = polar_to_vec(self.radius - length , deg)
             painter.drawLine(p0, p1)
+
 
 class RotatableObjet(QtWidgets.QGraphicsObject):
     """
@@ -327,8 +295,6 @@ class ShapeObjet(RotatableObjet):
             painter.drawPath(path)
 
 
-
-
 class Disc(ShapeObjet):
     def __init__(self,
                  outer_radius: float,
@@ -403,142 +369,6 @@ class Disc(ShapeObjet):
                                          self.outer_radius,
                                          self.start_angle,
                                          self.span_angle)
-
-
-# class TickRing(RotatableObjet):
-#     """
-#     A ring with ticks + optional numbers.
-#
-#     Labels are only drawn for long ticks defined by tick_specs.
-#         - tick_specs define where ticks go and their styling
-#         - label_specs define where labels go and their styling, but only for long ticks.
-#     """
-#     def __init__(
-#         self,
-#         outer_radius: float,
-#         inner_radius: float = 0.0,
-#         start_angle: float = 0.0,
-#         span_angle: float = 360.0,
-#         tick_specs: List[TickSpec] | None = None,
-#         label_specs: List[LabelSpec] | None = None,
-#         circle_specs: List[CircleSpec] | None = None,
-#         z: float = 0.0,
-#         draggable: bool = True,
-#         brush: QtGui.QBrush | None = None,
-#         parent=None,
-#     ):
-#         super().__init__(radius=outer_radius, z=z, draggable=draggable, parent=parent)
-#         self.outer_radius = outer_radius
-#         self.inner_radius = inner_radius
-#         self.tick_specs = tick_specs or []
-#         self.label_specs = label_specs or []
-#         self.circle_specs = circle_specs or []
-#         self.ring_brush = brush
-#
-#     def paint(self, painter: QtGui.QPainter, option, widget=None) -> None:
-#         painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
-#
-#         def_label_radius = (self.outer_radius + self.inner_radius) / 2
-#
-#         # Fill ring
-#         if self.ring_brush is not None:
-#             path = QtGui.QPainterPath()
-#
-#             # Bounding rect (x, y, width, height)
-#             r = int(self.inner_radius)
-#             rect = QtCore.QRect(-r, -r, r, r)
-#             # Angles in 1/16th of a degree
-#             start_angle = 30 * 16
-#             span_angle = 100 * 16
-#             # Draw the wedge
-#
-#             painter.drawPie(rect, start_angle, span_angle)
-#
-#             path.addEllipse(QtCore.QPointF(0, 0), self.outer_radius, self.outer_radius)
-#             inner = QtGui.QPainterPath()
-#
-#             inner.addEllipse(QtCore.QPointF(0, 0), self.inner_radius, self.inner_radius)
-#             path = path.subtracted(inner)
-#             painter.fillPath(path, self.ring_brush)
-#
-#         # Ticks
-#         label_specs = self.label_specs if self.label_specs else [LabelSpec()] * len(self.tick_specs)
-#         for tick_spec, label_spec in zip(self.tick_specs, label_specs):
-#             pen = QtGui.QPen(tick_spec.color)
-#             pen.setWidthF(tick_spec.pen_width)
-#             painter.setPen(pen)
-#             font = QtGui.QFont("Arial", label_spec.font_size)
-#             font.setBold(label_spec.bold)
-#             painter.setFont(font)
-#
-#             deg_range = tick_spec.end_deg - tick_spec.start_deg
-#             if tick_spec.end_deg < tick_spec.start_deg:
-#                 deg_range += 360.0
-#
-#             # TODO: Add logarithmic tick spacing option. For now just use linear spacing.
-#             # labels = label_spec.values if label_spec.values else []
-#             # vmin = min(labels)
-#             # vmax = max(labels)
-#             # degrees = np.degree(2 * np.pi * (np.log(values) - np.log(vmin)) / (np.log(vmax) - np.log(vmin)))
-#
-#             label_idx = 0  # label index
-#             steps = int(deg_range / tick_spec.step_deg)
-#
-#             degrees = [tick_spec.start_deg + i * tick_spec.step_deg for i in range(steps)]
-#
-#             for i, deg in enumerate(degrees):
-#                 # deg = tick_spec.start_deg + i * tick_spec.step_deg
-#
-#                 # Draw ticks
-#                 is_long = (i % tick_spec.long_every) == 0
-#                 length = tick_spec.long_len if is_long else tick_spec.short_len
-#
-#                 start_radius = self.outer_radius if tick_spec.reverse else self.inner_radius
-#                 end_radius = start_radius - length - 1 if tick_spec.reverse else start_radius + length + 1
-#                 radial_offset = -tick_spec.radial_offset if tick_spec.reverse else tick_spec.radial_offset
-#
-#                 p1 = self._polar(start_radius + radial_offset, deg)
-#                 p2 = self._polar(end_radius + radial_offset, deg)
-#                 painter.drawLine(p1, p2)
-#
-#                 # Draw labels (0..350)
-#                 if is_long and label_spec.label_every_long > 0 and (i % (tick_spec.long_every * label_spec.label_every_long)) == 0:
-#                     pt = self._polar(label_spec.radius or def_label_radius, deg)
-#                     txt = str(int(label_spec.start_num + label_idx * label_spec.step_num))
-#                     label_idx += 1
-#                     metrics = QtGui.QFontMetrics(font)
-#                     w = metrics.horizontalAdvance(txt)
-#                     h = metrics.height()
-#                     pivot = QtCore.QPoint(int(-w/2), int(h/2))
-#                     painter.save()
-#                     painter.translate(pt)   # move the coordinate system to the label position
-#                     painter.rotate(deg)
-#                     painter.drawText(pivot, txt)    # draw regarding the coordinate system
-#                     # TODO: Use label_spec.color for text color, but need to set pen
-#                     #  before drawing ticks if we want different colors for ticks vs labels.
-#                     #  For now just use tick_spec.color for both.
-#                     # pen = QtGui.QPen(label_spec.color)
-#                     # painter.setPen(pen)
-#                     # painter.setPen(pen)
-#                     # pen.setColor(label_spec.color)
-#                     # painter.setPen(pen)
-#                     painter.restore()
-#
-#         # Draw circles
-#         for circ in self.circle_specs:
-#             pen = QtGui.QPen(circ.color)
-#             pen.setWidthF(circ.pen_width)
-#             painter.setPen(pen)
-#             painter.setBrush(QtCore.Qt.BrushStyle.NoBrush)
-#             painter.drawEllipse(QtCore.QPointF(0, 0), circ.radius, circ.radius)
-#
-#     @staticmethod
-#     def _polar(r: float, deg: float) -> QtCore.QPointF:
-#         # bearing deg: 0 up, cw positive
-#         rad = math.radians(deg)
-#         x = r * math.sin(rad)
-#         y = -r * math.cos(rad)
-#         return QtCore.QPointF(x, y)
 
 
 class RelativeBearingDisc(Disc):
@@ -1031,8 +861,6 @@ class BearingAndLeadPointer(Disc):
         painter.drawLine(p0, p1)
 
 
-
-
 class AttackDiscWidget(QtWidgets.QGraphicsView):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1042,31 +870,6 @@ class AttackDiscWidget(QtWidgets.QGraphicsView):
         scene = QtWidgets.QGraphicsScene(self)
         self.setScene(scene)
         self.setSceneRect(-600, -600, 1200, 1200)
-
-
-        # st_angle = 30
-        # sp_angle = 210
-        # tick_overlay = TickRadialOverlay(radius=300, step_deg=1, long_every=5, long_len=40,
-        #                            short_len=25, pen_width=2.0, reversed=True,
-        #                            start_deg=st_angle, span_deg=sp_angle,
-        #                            color=QtGui.QColor(220, 220, 220, 200))
-        # tick_overlay2 = TickRadialOverlay(radius=200, step_deg=2, long_every=5, long_len=20,
-        #                            short_len=10, pen_width=2.0, reversed=False,
-        #                            start_deg=300, span_deg=100,
-        #                            color=QtGui.QColor(100, 0, 0))
-        # label_overlay = LabelRadialOverlay(radius=240, step_deg=10, start_deg=300,
-        #                                    span_deg=100, start_num=20, num_increase=10,
-        #                                    font=QtGui.QFont("Arial", 16, QtGui.QFont.Bold), color=QtGui.QColor(100, 0, 0))
-        # disc = Disc(outer_radius=300,
-        #                   inner_radius=0,
-        #                   start_angle=st_angle, span_angle=sp_angle,
-        #                   z=0,
-        #                   draggable=True,
-        #                   brush=QtGui.QBrush(QtGui.QColor(200, 170, 150)))
-        # disc.add_overlay(tick_overlay)
-        # disc.add_overlay(tick_overlay2)
-        # disc.add_overlay(label_overlay)
-        # scene.addItem(disc)
 
         # --- Layer A: Relative Bearing Disc ---
         rel_bearing_disc = RelativeBearingDisc(500, 600, z=0)
@@ -1082,26 +885,12 @@ class AttackDiscWidget(QtWidgets.QGraphicsView):
 
         # --- Layer D: speed arc ring (example) ---
         bearing_n_lead_disc = BearingAndLeadPointer(radius=260, length=525, z=15)
-        # speed = SpeedArcRing(radius=240, thickness=26, z=15, draggable=True)
         scene.addItem(bearing_n_lead_disc)
 
-        # # --- Layer C: fixed index marker overlay (non-rotating) ---
-        # index = QtWidgets.QGraphicsPathItem()
-        # index.setZValue(3)
-        # p = QtGui.QPainterPath()
-        # p.moveTo(0, -405)
-        # p.lineTo(-18, -375)
-        # p.lineTo(18, -375)
-        # p.closeSubpath()
-        # index.setPath(p)
-        # index.setBrush(QtGui.QBrush(QtGui.QColor(235, 235, 235)))
-        # index.setPen(QtGui.QPen(QtCore.Qt.NoPen))
-        # scene.addItem(index)
-
-        # --- Layer C: Attack Course Pointer ---
-        ring_bearing = AttackCoursePointer(length=550, width=40, z=20)
-        ring_bearing.setRotation(35)  # initial pose
-        scene.addItem(ring_bearing)
+        # --- Layer E: Attack Course Pointer ---
+        attack_pointer = AttackCoursePointer(length=550, width=40, z=20)
+        attack_pointer.setRotation(35)  # initial pose
+        scene.addItem(attack_pointer)
 
         # Center hub (visual only)
         hub = QtWidgets.QGraphicsEllipseItem(-55, -55, 110, 110)
@@ -1116,10 +905,11 @@ class AttackDiscWidget(QtWidgets.QGraphicsView):
         knob.setPen(QtGui.QPen(QtGui.QColor(30, 30, 30), 1))
         scene.addItem(knob)
 
-        # self.rel_bearing_disc = rel_bearing_disc
-        # self.ring_speed = ring_speed
-        # # self.speed = speed
-        # self.ring_bearing = ring_bearing
+        self.rel_bearing_disc = rel_bearing_disc
+        self.compass_rose_disc = compass_rose_disc
+        self.aob_disc = aob_disc
+        self.bearing_n_lead_disc = bearing_n_lead_disc
+        self.attack_pointer = attack_pointer
 
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
         self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
