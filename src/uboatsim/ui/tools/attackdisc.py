@@ -6,6 +6,7 @@ from typing import List, Tuple
 
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtWidgets import QGraphicsView
+from pygments.styles.dracula import green
 
 
 def clamp_angle_deg(a: float) -> float:
@@ -163,7 +164,7 @@ class LabelRadialOverlay(RadialOverlay):
             painter.save()
             painter.translate(pt)  # move the coordinate system to the label position
             painter.rotate(deg)
-            painter.drawText(pivot, txt)
+            painter.drawStaticText(pivot, QtGui.QStaticText(txt))
             painter.restore()
 
 
@@ -183,27 +184,55 @@ class TickRadialOverlay(RadialOverlay):
         self.reversed = reversed
         # self.log_scale = False  # TODO: Add option for logarithmic tick spacing
 
-    def paint(self, painter: QtGui.QPainter, option, widget=None) -> None:
-        super().paint(painter, option, widget)
+        # Cached geometry for fast draw
+        self._cache_valid = False
+        self._short_lines: list[QtCore.QLineF] = []
+        self._long_lines: list[QtCore.QLineF] = []
+        # self.setCacheMode(QtWidgets.QGraphicsItem.CacheMode.ItemCoordinateCache)
 
-        # vmin = min(values)
-        # vmax = max(values)
-        # degrees = np.degree(2 * np.pi * (np.log(values) - np.log(vmin)) / (np.log(vmax) - np.log(vmin)))
+    def _invalidate_cache(self) -> None:
+        """Call this whenever parameters change that affect the geometry of the ticks."""
+        self._cache_valid = False
+        self.update()
 
-        pen = painter.pen()
-        pw = pen.widthF()
+    def _rebuild_cache(self) -> None:
+        self._short_lines.clear()
+        self._long_lines.clear()
 
         for i, deg in enumerate(self.step_values):
             is_long = (i % self.long_every) == 0
             length = self.long_len if is_long else self.short_len
-            pen.setWidthF(pw * self.long_width_mult if is_long else pw)
-            painter.setPen(pen)
 
-            p0 = polar_to_vec(self.radius , deg)
-            p1 = polar_to_vec(self.radius + length , deg)
+            p0 = polar_to_vec(self.radius, deg)
             if self.reversed:
-                p1 = polar_to_vec(self.radius - length , deg)
-            painter.drawLine(p0, p1)
+                p1 = polar_to_vec(self.radius - length, deg)
+            else:
+                p1 = polar_to_vec(self.radius + length, deg)
+
+            line = QtCore.QLineF(p0, p1)
+            if is_long:
+                self._long_lines.append(line)
+            else:
+                self._short_lines.append(line)
+
+        self._cache_valid = True
+
+    def paint(self, painter: QtGui.QPainter, option, widget=None) -> None:
+        super().paint(painter, option, widget)
+
+        if not self._cache_valid:
+            self._rebuild_cache()
+
+        pen = painter.pen()
+        pw = pen.widthF()
+
+        if self._short_lines:
+            painter.drawLines(self._short_lines)
+
+        if self._long_lines:
+            pen.setWidthF(pw * self.long_width_mult)
+            painter.setPen(pen)
+            painter.drawLines(self._long_lines)
 
         pen.setWidthF(pw)
         painter.setPen(pen)
@@ -416,7 +445,7 @@ class RelativeBearingDisc(Disc):
         disc_width = radius_out - radius_in
 
         tick_overlay = TickRadialOverlay(
-            radius=radius_in + disc_width * 0.1,
+            radius=radius_in + disc_width * 0.15,
             step_deg=1,
             start_deg=0,
             span_deg=360,
@@ -431,16 +460,16 @@ class RelativeBearingDisc(Disc):
             antialiasing=True,
         )
         label_overlay = LabelRadialOverlay(
-            radius=radius_in + disc_width * 0.85,
+            radius=radius_in + disc_width*1.05,
             step_deg=10,
             start_deg=180,
             span_deg=360,
             start_num=0,
             num_increase=10,
             include_end=False,
-            font=QtGui.QFont("Arial", 15, QtGui.QFont.Bold),
+            font=QtGui.QFont("Arial", 18, QtGui.QFont.Bold),
             color=QtGui.QColor(188, 183, 183),
-            antialiasing=False,
+            antialiasing=True,
         )
         self.add_overlay(tick_overlay)
         self.add_overlay(label_overlay)
@@ -488,20 +517,20 @@ class CompassRoseDisc(Disc):
             antialiasing=True,
         )
         label_out_overlay = LabelRadialOverlay(
-            radius=radius_out - disc_width * 0.5,
+            radius=radius_out - disc_width * 0.35,
             step_deg=10,
             start_deg=0,
             span_deg=360,
             start_num=0,
             num_increase=10,
             include_end=False,
-            font=QtGui.QFont("Arial", 14),
+            font=QtGui.QFont("Arial", 17),
             color=QtGui.QColor(0, 0, 0),
             antialiasing=True,
         )
 
         tick_in_overlay = TickRadialOverlay(
-            radius=radius_out - disc_width * 0.7,
+            radius=radius_out - disc_width * 0.6,
             step_deg=1,
             start_deg=0,
             span_deg=360,
@@ -516,19 +545,19 @@ class CompassRoseDisc(Disc):
             antialiasing=True,
         )
         label_in_overlay = LabelRadialOverlay(
-            radius=radius_out - disc_width * 0.93,
+            radius=radius_out - disc_width * 0.73,
             step_deg=10,
             start_deg=180,
             span_deg=360,
             start_num=0,
             num_increase=10,
             include_end=False,
-            font=QtGui.QFont("Arial", 13),
+            font=QtGui.QFont("Arial", 15),
             color=QtGui.QColor(0, 0, 0),
             antialiasing=True,
         )
         circle = CircleOverlay(
-            radius=radius_out - disc_width * 0.7 + 1,
+            radius=radius_out - disc_width * 0.6 + 1,
             pen_width=2.0,
             color=QtGui.QColor(0, 0, 0),
             antialiasing=True,
@@ -589,14 +618,14 @@ class AngleOnBowDisc(Disc):
             antialiasing=True,
         )
         label_R_overlay = LabelRadialOverlay(
-            radius=radius_out-30,
+            radius=radius_out - 15,
             step_deg=10,
             start_deg=0,
             span_deg=180,
             start_num=0,
             num_increase=10,
             include_end=False,
-            font=QtGui.QFont("Arial", 14),
+            font=QtGui.QFont("Arial", 16),
             color=QtGui.QColor(0, 120, 0),
             antialiasing=True,
         )
@@ -616,14 +645,14 @@ class AngleOnBowDisc(Disc):
             antialiasing=True,
         )
         label_L_overlay = LabelRadialOverlay(
-            radius=radius_out - 30,
+            radius=radius_out - 15,
             step_deg=10,
             start_deg=180,
             span_deg=180,
             start_num=180,
             num_increase=-10,
             include_end=False,
-            font=QtGui.QFont("Arial", 14),
+            font=QtGui.QFont("Arial", 16),
             color=QtGui.QColor(200, 0, 0),
             antialiasing=True,
         )
@@ -637,7 +666,6 @@ class AngleOnBowDisc(Disc):
         path = self._pointer_path()
         h = path.boundingRect().height()
         return QtCore.QRectF(-r, -(r+h), 2 * r, 2 * r + h)
-
 
     def _pointer_path(self) -> QtGui.QPainterPath:
         W = 100
@@ -660,6 +688,7 @@ class AngleOnBowDisc(Disc):
 
     def paint(self, painter: QtGui.QPainter, option, widget=None) -> None:
         # draw a long rectangle from center to outward (pointing "up" at rotation=0)
+        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
         path = self._pointer_path()
         painter.fillPath(path, QtGui.QColor(0, 0, 0, 50))
         painter.setPen(self.contour_pen)
@@ -680,28 +709,46 @@ class AngleOnBowDisc(Disc):
         # # Draw the rest of the disc on top of the pointer
         super().paint(painter, option, widget)
 
+        # Add decoration: inner circle
         painter.setBrush(QtGui.QColor(204, 171, 138))
         painter.setPen(QtCore.Qt.PenStyle.NoPen)
         painter.drawEllipse(QtCore.QPoint(0, 0), 300, 300)
 
+        # Add decoration: perpendicular line
+        pen = QtGui.QPen()
+        pen.setWidth(2)
+        pen.setColor(self.overlays[2].color)
+        painter.setPen(pen)
+        painter.drawLine(0, 0, int(self.outer_radius), 0)
+        pen.setColor(self.overlays[0].color)
+        painter.setPen(pen)
+        painter.drawLine(0, 0, -int(self.outer_radius), 0)
+
         # Add decoration: ship silhouette
-        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
         scl = -1.8
-        ship = QtGui.QPolygonF([
-            QtCore.QPointF(0 * scl, -100 * scl),
-            QtCore.QPointF(30 * scl, -100 * scl),
-            QtCore.QPointF(40 * scl, 0 * scl),
-            QtCore.QPointF(30 * scl, 100 * scl),
-            QtCore.QPointF(0 * scl, 140 * scl),
-            QtCore.QPointF(-30 * scl, 100 * scl),
-            QtCore.QPointF(-40 * scl, 0 * scl),
-            QtCore.QPointF(-30 * scl, -100 * scl),
-            QtCore.QPointF(0 * scl, -100 * scl),
-        ])
-        # painter.setBrush(QtGui.QColor(120, 0, 0, 230))
+        points = [
+            QtCore.QPointF(0, -120) * scl ,
+            QtCore.QPointF(30, -120) * scl,
+            QtCore.QPointF(40, 0) * scl,
+            QtCore.QPointF(30, 80) * scl,
+            QtCore.QPointF(0 , 120) * scl,
+            QtCore.QPointF(-30 , 80) * scl,
+            QtCore.QPointF(-40 , 0) * scl,
+            QtCore.QPointF(-30 , -120) * scl,
+            QtCore.QPointF(0 , -120) * scl,
+        ]
         painter.setBrush(QtCore.Qt.BrushStyle.NoBrush)
-        painter.setPen(QtGui.QPen(QtGui.QColor(0, 0, 0), 1.5))
-        painter.drawPolygon(ship)
+        painter.setPen(QtGui.QPen(QtGui.QColor(0, 0, 0, 100), 3))
+
+        path = QtGui.QPainterPath()
+        path.moveTo(points[0])
+        path.quadTo(points[1], points[2])
+        path.quadTo(points[3], points[4])
+        path.quadTo(points[5], points[6])
+        path.quadTo(points[7], points[0])
+        path.closeSubpath()
+        painter.fillPath(path, QtGui.QColor(70, 75, 90))
+        painter.drawPath(path)
 
 
 class AttackCoursePointer(ShapeObjet):
@@ -710,8 +757,8 @@ class AttackCoursePointer(ShapeObjet):
     """
     def __init__(self, length: float, width: float, z: float = 0, parent=None):
         super().__init__(radius=length, z=z, draggable=True, parent=parent,
-                         pen=QtGui.QPen(QtGui.QColor(255, 255, 255, 120), 1.0),
-                         brush=QtGui.QBrush(QtGui.QColor(255, 255, 255, 40)))
+                         pen=QtGui.QPen(QtGui.QColor(0, 0, 0, 120), 1.0),
+                         brush=QtGui.QBrush(QtGui.QColor(0, 0, 0, 20)))
         self.length = length
         self.width = width
 
@@ -785,7 +832,7 @@ class BearingAndLeadPointer(Disc):
             z=z,
             draggable=True,
             pen=QtGui.QPen(QtGui.QColor(0, 0, 0, 100), 1.0),
-            brush=QtGui.QBrush(QtGui.QColor(237, 237, 237, 40)),
+            brush=QtGui.QBrush(QtGui.QColor(0, 0, 0, 20)),
             parent=parent
         )
         self.length = length
@@ -806,7 +853,7 @@ class BearingAndLeadPointer(Disc):
             antialiasing=True,
         )
         label_R_overlay = LabelRadialOverlay(
-            radius=radius - 30,
+            radius=radius - 15,
             step_deg=10,
             start_deg=0,
             span_deg=60,
@@ -832,7 +879,7 @@ class BearingAndLeadPointer(Disc):
             antialiasing=True,
         )
         label_L_overlay = LabelRadialOverlay(
-            radius=radius - 30,
+            radius=radius - 15,
             step_deg=10,
             start_deg=-60,
             span_deg=60,
@@ -868,9 +915,9 @@ class BearingAndLeadPointer(Disc):
 
         # Draw a center line with an arrowhead
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
-        p0 = polar_to_vec(self.length * 0.2, 0)
-        p1 = polar_to_vec(self.length * 0.9, 0)
-        pen = QtGui.QPen(QtGui.QColor(0, 0, 0), 2.0)
+        p0 = polar_to_vec(self.length * 0.5, 0)
+        p1 = polar_to_vec(self.length * 0.95, 0)
+        pen = QtGui.QPen(QtGui.QColor(0, 0, 0), 3.0)
         painter.setPen(pen)
         painter.drawLine(p0, p1)
 
@@ -898,7 +945,7 @@ class AttackDiscWidget(QtWidgets.QGraphicsView):
         scene.addItem(aob_disc)
 
         # --- Layer D: Bearing and Lead Pointer ---
-        bearing_n_lead_disc = BearingAndLeadPointer(radius=260, length=525, z=15)
+        bearing_n_lead_disc = BearingAndLeadPointer(radius=260, length=500, z=15)
         scene.addItem(bearing_n_lead_disc)
 
         # --- Layer E: Attack Course Pointer ---
