@@ -229,6 +229,8 @@ class RotatableObjet(QtWidgets.QGraphicsObject):
         self._start_rotation = 0.0
         self._min_drag_radius = 12.0
 
+        self._debug = False
+
     def boundingRect(self) -> QtCore.QRectF:
         r = self.radius + 2
         return QtCore.QRectF(-r, -r, 2 * r, 2 * r)
@@ -268,6 +270,13 @@ class RotatableObjet(QtWidgets.QGraphicsObject):
         self._dragging = False
         event.accept()
 
+    def paint(self, painter, option, widget = ...):
+        if self._debug:
+            painter.setPen(QtGui.QPen(QtGui.QColor(255, 0, 0), 2.0))
+            painter.setBrush(QtCore.Qt.BrushStyle.NoBrush)
+            rect = self.boundingRect()
+            painter.drawRect(rect)
+
 
 class ShapeObjet(RotatableObjet):
     """
@@ -287,11 +296,18 @@ class ShapeObjet(RotatableObjet):
         self.overlays.append(overlay)
         overlay.setParentItem(self)
 
+    def path(self) -> QtGui.QPainterPath:
+        """Return the path to be drawn for this item."""
+        raise NotImplementedError("Subclasses must implement path()")
+
     def shape(self) -> QtGui.QPainterPath:
-        raise NotImplementedError("Subclasses must implement shape()")
+        """Return the shape of the item for mouse interaction (e.g. clicks, drags)."""
+        # raise NotImplementedError("Subclasses must implement shape()")
+        return self.path()
 
     def paint(self, painter, option, widget = ...):
-        path = self.shape()
+        super().paint(painter, option, widget)
+        path = self.path()
         if self.brush is None:
             painter.setBrush(QtCore.Qt.BrushStyle.NoBrush)
         else:
@@ -368,9 +384,7 @@ class Disc(ShapeObjet):
             path = path.subtracted(inner_path)
         return path
 
-    def shape(self) -> QtGui.QPainterPath:
-        # TODO: Optimize shape creation by caching paths for common cases
-        #  (full ring, simple pie wedge) and only creating custom paths for partial pies.
+    def path(self) -> QtGui.QPainterPath:
         if self.span_angle >= 360.0 or self.span_angle <= -360.0:
             return self._create_ring_path(self.outer_radius, self.inner_radius)
         else:
@@ -378,6 +392,11 @@ class Disc(ShapeObjet):
                                          self.outer_radius,
                                          self.start_angle,
                                          self.span_angle)
+
+    # def shape(self) -> QtGui.QPainterPath:
+    #     # TODO: Optimize shape creation by caching paths for common cases
+    #     #  (full ring, simple pie wedge) and only creating custom paths for partial pies.
+    #     return self.path()
 
 
 class RelativeBearingDisc(Disc):
@@ -434,7 +453,6 @@ class RelativeBearingDisc(Disc):
             QtCore.QPointF(0, -self.inner_radius - 1),
             QtCore.QPointF(15, -self.inner_radius - 20),
             QtCore.QPointF(-15, -self.inner_radius - 20)])
-        # c.setAlpha(255)  # same alpha as ticks
         painter.setBrush(self.overlays[0].color)  # same color as ticks
         painter.setPen(QtGui.QColor("black"))
         painter.setPen(QtCore.Qt.PenStyle.SolidLine)
@@ -540,49 +558,6 @@ class CompassRoseDisc(Disc):
         painter.drawPath(path)
 
 
-class SpeedArcRing(RotatableObjet):
-    """
-    A ring that draws red/green arc segments like the speed scale.
-    """
-    def __init__(self, radius: float, thickness: float, z: float, draggable: bool = True, parent=None):
-        super().__init__(radius=radius + thickness, z=z, draggable=draggable, parent=parent)
-        self.radius = radius
-        self.thickness = thickness
-
-    def boundingRect(self) -> QtCore.QRectF:
-        r = self.radius + self.thickness + 2
-        return QtCore.QRectF(-r, -r, 2 * r, 2 * r)
-
-    def paint(self, painter: QtGui.QPainter, option, widget=None) -> None:
-        painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
-
-        rect = QtCore.QRectF(
-            -(self.radius + self.thickness / 2),
-            -(self.radius + self.thickness / 2),
-            2 * (self.radius + self.thickness / 2),
-            2 * (self.radius + self.thickness / 2),
-        )
-
-        # In Qt, angles are in 1/16 degrees, 0 at 3 o'clock, CCW positive.
-        # We'll define arcs by bearings and convert.
-        def bearing_to_qt16(bearing_deg: float) -> int:
-            # bearing: 0 up cw+ -> qt: 0 right ccw+
-            qt_deg = 90 - bearing_deg
-            return int(qt_deg * 16)
-
-        pen = QtGui.QPen(QtGui.QColor(30, 200, 80))
-        pen.setWidthF(self.thickness)
-        pen.setCapStyle(QtCore.Qt.RoundCap)
-        painter.setPen(pen)
-        # green arc segment (example)
-        painter.drawArc(rect, bearing_to_qt16(210), int(-120 * 16))
-
-        pen.setColor(QtGui.QColor(220, 60, 60))
-        painter.setPen(pen)
-        # red arc segment (example)
-        painter.drawArc(rect, bearing_to_qt16(30), int(-120 * 16))
-
-
 class AngleOnBowDisc(Disc):
     """
     A disc with ticks every 10 degrees and labels every 30 degrees, used for angle-on-bow display.
@@ -594,8 +569,10 @@ class AngleOnBowDisc(Disc):
             z=z,
             draggable=True,
             brush=QtGui.QBrush(QtGui.QColor(237, 237, 237)),
-            parent=parent
+            parent=parent,
         )
+        self.contour_pen = QtGui.QPen(QtGui.QColor(0, 0, 0, 180), 1.5)
+
         tick_R_overlay = TickRadialOverlay(
             radius=radius_out,
             step_deg=1,
@@ -655,11 +632,17 @@ class AngleOnBowDisc(Disc):
         self.add_overlay(tick_R_overlay)
         self.add_overlay(label_R_overlay)
 
+    def boundingRect(self) -> QtCore.QRectF:
+        r = self.outer_radius + 5
+        path = self._pointer_path()
+        h = path.boundingRect().height()
+        return QtCore.QRectF(-r, -(r+h), 2 * r, 2 * r + h)
+
 
     def _pointer_path(self) -> QtGui.QPainterPath:
-        path = QtGui.QPainterPath()
         W = 100
         L = 230
+        path = QtGui.QPainterPath()
         poly = QtGui.QPolygonF([
             QtCore.QPointF(-W / 2, -self.outer_radius+5),
             QtCore.QPointF(W / 2, -self.outer_radius+5),
@@ -670,11 +653,16 @@ class AngleOnBowDisc(Disc):
         path.addPolygon(poly)
         return path
 
+    def shape(self) -> QtGui.QPainterPath:
+        base_path = super().shape()
+        path = base_path.united(self._pointer_path())
+        return path
+
     def paint(self, painter: QtGui.QPainter, option, widget=None) -> None:
         # draw a long rectangle from center to outward (pointing "up" at rotation=0)
         path = self._pointer_path()
         painter.fillPath(path, QtGui.QColor(0, 0, 0, 50))
-        painter.setPen(QtGui.QPen(QtGui.QColor(0, 0, 0, 180), 1.5))
+        painter.setPen(self.contour_pen)
         painter.drawPath(path)
 
         # Add decoration: arrowhead
@@ -686,11 +674,10 @@ class AngleOnBowDisc(Disc):
             QtCore.QPointF(-7, -self.outer_radius + radial_offset),
         ])
         painter.setBrush(QtGui.QColor(120, 0, 0, 230))
-        # painter.setPen(QtCore.Qt.PenStyle.NoPen)
-        painter.setPen(QtGui.QPen(QtGui.QColor(190, 0, 0, 180), 1.0))
+        painter.setPen(self.contour_pen)
         painter.drawPolygon(arrowhead)
 
-        # Draw the rest of the disc on top of the pointer
+        # # Draw the rest of the disc on top of the pointer
         super().paint(painter, option, widget)
 
         painter.setBrush(QtGui.QColor(204, 171, 138))
@@ -698,6 +685,7 @@ class AngleOnBowDisc(Disc):
         painter.drawEllipse(QtCore.QPoint(0, 0), 300, 300)
 
         # Add decoration: ship silhouette
+        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
         scl = -1.8
         ship = QtGui.QPolygonF([
             QtCore.QPointF(0 * scl, -100 * scl),
@@ -721,39 +709,57 @@ class AttackCoursePointer(ShapeObjet):
     Simple transparent ruler/arm overlay. Rotatable.
     """
     def __init__(self, length: float, width: float, z: float = 0, parent=None):
-        super().__init__(radius=length, z=z, draggable=True, parent=parent)
+        super().__init__(radius=length, z=z, draggable=True, parent=parent,
+                         pen=QtGui.QPen(QtGui.QColor(255, 255, 255, 120), 1.0),
+                         brush=QtGui.QBrush(QtGui.QColor(255, 255, 255, 40)))
         self.length = length
         self.width = width
 
     def boundingRect(self) -> QtCore.QRectF:
-        r = self.length + 10
-        return QtCore.QRectF(-r, -r, 2 * r, 2 * r)
+        r = self.length + 5
+        return QtCore.QRectF(-self.width, -r, 2*self.width, 2*r)
 
-    def shape(self) -> QtGui.QPainterPath:
+    def _pointer_path(self) -> QtGui.QPainterPath:
+        w = self.width
+        L = self.length
+        path = QtGui.QPainterPath()
+        poly = QtGui.QPolygonF([
+            QtCore.QPointF(-w/2, L),
+            QtCore.QPointF(w/2, L),
+            QtCore.QPointF(w, 0),
+            QtCore.QPointF(w/2, -L),
+            QtCore.QPointF(-w/2, -L),
+            QtCore.QPointF(-w, 0),
+            QtCore.QPointF(-w/2, L),
+        ])
+        path.addPolygon(poly)
+        return path
+
+    def path(self) -> QtGui.QPainterPath:
         path = QtGui.QPainterPath()
         w = self.width
         L = self.length
         poly = QtGui.QPolygonF([
-            QtCore.QPointF(-w / 2, L),
-            QtCore.QPointF(w / 2, L),
+            QtCore.QPointF(-w/2, L),
+            QtCore.QPointF(w/2, L),
             QtCore.QPointF(w, 0),
-            QtCore.QPointF(w / 2, -L),
-            QtCore.QPointF(-w / 2, -L),
+            QtCore.QPointF(w/2, -L),
+            QtCore.QPointF(-w/2, -L),
             QtCore.QPointF(-w, 0),
-            QtCore.QPointF(-w / 2, L),
+            QtCore.QPointF(-w/2, L),
         ])
         path.addPolygon(poly)
         return path
 
     def paint(self, painter: QtGui.QPainter, option, widget=None) -> None:
         super().paint(painter, option, widget)
-        painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
+        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
 
-        # draw a long rectangle from center to outward (pointing "up" at rotation=0)
-        path = self.shape()
-        painter.fillPath(path, QtGui.QColor(255, 255, 255, 40))
-        painter.setPen(QtGui.QPen(QtGui.QColor(255, 255, 255, 120), 1.0))
-        painter.drawPath(path)
+        # # draw a long rectangle from center to outward (pointing "up" at rotation=0)
+        # path = self.path()
+        # painter.fillPath(path, QtGui.QColor(255, 255, 255, 40))
+        # painter.setPen(QtGui.QPen(QtGui.QColor(255, 255, 255, 120), 1.0))
+        # painter.drawPath(path)
 
         # draw a center line with an arrowhead
         painter.setPen(QtGui.QPen(QtGui.QColor(0, 0, 0, 255), 2.0))
@@ -766,10 +772,6 @@ class AttackCoursePointer(ShapeObjet):
         path = QtGui.QPainterPath()
         path.addPolygon(arrow)
         painter.fillPath(path, QtGui.QColor(0, 0, 0, 255))
-
-        # # center marker
-        # painter.setPen(QtGui.QPen(QtGui.QColor(255, 255, 255, 200), 2.0))
-        # painter.drawEllipse(QtCore.QPointF(0, 0), 8, 8)
 
 
 class BearingAndLeadPointer(Disc):
@@ -797,7 +799,7 @@ class BearingAndLeadPointer(Disc):
             long_every=5,
             long_len=16,
             short_len=7,
-            include_end=False,
+            include_end=True,
             pen_width=2.0,
             reversed=True,
             color=QtGui.QColor(0, 120, 0),
@@ -846,11 +848,12 @@ class BearingAndLeadPointer(Disc):
         self.add_overlay(tick_R_overlay)
         self.add_overlay(label_R_overlay)
 
+    def boundingRect(self) -> QtCore.QRectF:
+        r = self.radius + 5
+        return QtCore.QRectF(-r, -self.length, 2*r, self.length)
 
-
-    def shape(self) -> QtGui.QPainterPath:
-        path = super().shape()
-
+    def path(self) -> QtGui.QPainterPath:
+        path = super().path()
         pointer = QtGui.QPolygonF([
             polar_to_vec(self.radius, 10),
             polar_to_vec(self.length, 2),
@@ -858,15 +861,13 @@ class BearingAndLeadPointer(Disc):
             polar_to_vec(self.radius, -10),
         ])
         path.addPolygon(pointer)
-        path.closeSubpath()
         return path
-
 
     def paint(self, painter: QtGui.QPainter, option, widget=None) -> None:
         super().paint(painter, option, widget)
-        painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
 
         # Draw a center line with an arrowhead
+        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
         p0 = polar_to_vec(self.length * 0.2, 0)
         p1 = polar_to_vec(self.length * 0.9, 0)
         pen = QtGui.QPen(QtGui.QColor(0, 0, 0), 2.0)
@@ -893,10 +894,10 @@ class AttackDiscWidget(QtWidgets.QGraphicsView):
         scene.addItem(compass_rose_disc)
 
         # --- Layer C: Angle on Bow Pointer ---
-        aob_disc = AngleOnBowDisc(200, 350, z=10)
+        aob_disc = AngleOnBowDisc(0, 350, z=10)
         scene.addItem(aob_disc)
 
-        # --- Layer D: speed arc ring (example) ---
+        # --- Layer D: Bearing and Lead Pointer ---
         bearing_n_lead_disc = BearingAndLeadPointer(radius=260, length=525, z=15)
         scene.addItem(bearing_n_lead_disc)
 
@@ -918,11 +919,11 @@ class AttackDiscWidget(QtWidgets.QGraphicsView):
         knob.setPen(QtGui.QPen(QtGui.QColor(30, 30, 30), 1))
         scene.addItem(knob)
 
-        self.rel_bearing_disc = rel_bearing_disc
-        self.compass_rose_disc = compass_rose_disc
-        self.aob_disc = aob_disc
-        self.bearing_n_lead_disc = bearing_n_lead_disc
-        self.attack_pointer = attack_pointer
+        # self.rel_bearing_disc = rel_bearing_disc
+        # self.compass_rose_disc = compass_rose_disc
+        # self.aob_disc = aob_disc
+        # self.bearing_n_lead_disc = bearing_n_lead_disc
+        # self.attack_pointer = attack_pointer
 
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
         self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
