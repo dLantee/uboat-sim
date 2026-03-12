@@ -423,8 +423,8 @@ class RelativeBearingDisc(Disc):
         # Add decoration: North arrowhead
         arrow_north = QtGui.QPolygonF([
             QtCore.QPointF(0, -self.inner_radius - 1),
-            QtCore.QPointF(10, -self.inner_radius - 15),
-            QtCore.QPointF(-10, -self.inner_radius - 15)])
+            QtCore.QPointF(15, -self.inner_radius - 20),
+            QtCore.QPointF(-15, -self.inner_radius - 20)])
         # c.setAlpha(255)  # same alpha as ticks
         painter.setBrush(self.overlays[0].color)  # same color as ticks
         painter.setPen(QtGui.QColor("black"))
