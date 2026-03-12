@@ -2,11 +2,10 @@
 
 """
 import math
-from typing import List, Tuple
+from typing import Tuple, Iterable
 
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtWidgets import QGraphicsView
-from pygments.styles.dracula import green
 
 
 def clamp_angle_deg(a: float) -> float:
@@ -135,14 +134,14 @@ class LabelRadialOverlay(RadialOverlay):
     """
     Simple labels at specified angles. Not a full ring, just individual labels.
     """
-    def __init__(self, *, start_num:int=0, num_increase:int=1, **kwargs):
+    def __init__(self, *, start_num:int=0, num_increase:int=1, custom_labels:Iterable | None = None, **kwargs):
         super().__init__(**kwargs)
         self.start_num = start_num
         self.num_increase = num_increase
 
         # optional custom labels for each step,
         # overrides default numbering if provided
-        self.custom_labels = []
+        self.custom_labels = custom_labels or []
 
     def paint(self, painter: QtGui.QPainter, option, widget=None) -> None:
         super().paint(painter, option, widget)
@@ -153,9 +152,12 @@ class LabelRadialOverlay(RadialOverlay):
 
             # if self.custom_labels:
             #     if len(self.custom_labels) != self.step_num:
-            #         raise ValueError(f"Length of custom_labels ({len(self.custom_labels)}) must match number of steps ({self.step_num()})")
-
+            #         raise ValueError(f"Length of custom_labels ({len(self.custom_labels)}) must match number of steps ({self.step_num})")
             # txt = self.custom_labels[i] if self.custom_labels else def_txt
+
+            if self.custom_labels:
+                if isinstance(self.custom_labels, str):
+                    txt = self.custom_labels
 
             metrics = QtGui.QFontMetrics(self.font)
             w = metrics.horizontalAdvance(txt)
@@ -810,7 +812,8 @@ class AttackCoursePointer(ShapeObjet):
 
         # draw a center line with an arrowhead
         painter.setPen(QtGui.QPen(QtGui.QColor(0, 0, 0, 255), 2.0))
-        painter.drawLine(0, int(self.length), 0, int(-self.length))
+        painter.drawLine(0, int(self.length/3), 0, int(self.length))
+        painter.drawLine(0, -int(self.length/3), 0, -int(self.length))
         arrow = QtGui.QPolygonF([
             QtCore.QPointF(0, self.length),
             QtCore.QPointF(10, self.length-30),
@@ -819,6 +822,26 @@ class AttackCoursePointer(ShapeObjet):
         path = QtGui.QPainterPath()
         path.addPolygon(arrow)
         painter.fillPath(path, QtGui.QColor(0, 0, 0, 255))
+
+        # draw text
+        txt0 = "Attack"
+        txt1 = "Course"
+        font = QtGui.QFont("Arial", 20)
+        metrics = QtGui.QFontMetrics(font)
+        w0 = metrics.horizontalAdvance(txt0)
+        w1 = metrics.horizontalAdvance(txt1)
+        h = metrics.height()
+        pivot0 = QtCore.QPointF(-2*w0, -h/2)
+        pivot1 = QtCore.QPointF(w1, -h/2)
+        painter.setPen(QtGui.QColor(0, 0, 0, 200))
+        painter.setFont(font)
+        painter.save()
+        painter.translate(0, 0)
+        painter.rotate(90)
+        # painter.scale(10, 10)
+        painter.drawStaticText(pivot0, QtGui.QStaticText(txt0))
+        painter.drawStaticText(pivot1, QtGui.QStaticText(txt1))
+        painter.restore()
 
 
 class BearingAndLeadPointer(Disc):
@@ -890,10 +913,34 @@ class BearingAndLeadPointer(Disc):
             color=QtGui.QColor(200, 0, 0),
             antialiasing=True,
         )
+        label_lead_angle = LabelRadialOverlay(
+            radius=radius * 0.7,
+            step_deg=1,
+            start_deg=0,
+            span_deg=1,
+            include_end=False,
+            font=QtGui.QFont("Arial", 16, QtGui.QFont.Bold),
+            color=QtGui.QColor(0, 0, 0, 200),
+            antialiasing=True,
+            custom_labels="Lead Angle",
+        )
+        label_AoB_angle = LabelRadialOverlay(
+            radius=length * 0.6,
+            step_deg=1,
+            start_deg=0,
+            span_deg=1,
+            include_end=False,
+            font=QtGui.QFont("Arial", 14),
+            color=QtGui.QColor(0, 0, 0, 200),
+            antialiasing=True,
+            custom_labels="AoB",
+        )
         self.add_overlay(tick_L_overlay)
         self.add_overlay(label_L_overlay)
         self.add_overlay(tick_R_overlay)
         self.add_overlay(label_R_overlay)
+        self.add_overlay(label_lead_angle)
+        self.add_overlay(label_AoB_angle)
 
     def boundingRect(self) -> QtCore.QRectF:
         r = self.radius + 5
@@ -915,7 +962,7 @@ class BearingAndLeadPointer(Disc):
 
         # Draw a center line with an arrowhead
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
-        p0 = polar_to_vec(self.length * 0.5, 0)
+        p0 = polar_to_vec(self.length * 0.6, 0)
         p1 = polar_to_vec(self.length * 0.95, 0)
         pen = QtGui.QPen(QtGui.QColor(0, 0, 0), 3.0)
         painter.setPen(pen)
@@ -966,11 +1013,11 @@ class AttackDiscWidget(QtWidgets.QGraphicsView):
         knob.setPen(QtGui.QPen(QtGui.QColor(30, 30, 30), 1))
         scene.addItem(knob)
 
-        # self.rel_bearing_disc = rel_bearing_disc
-        # self.compass_rose_disc = compass_rose_disc
-        # self.aob_disc = aob_disc
-        # self.bearing_n_lead_disc = bearing_n_lead_disc
-        # self.attack_pointer = attack_pointer
+        self.rel_bearing_disc = rel_bearing_disc
+        self.compass_rose_disc = compass_rose_disc
+        self.aob_disc = aob_disc
+        self.bearing_n_lead_disc = bearing_n_lead_disc
+        self.attack_pointer = attack_pointer
 
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
         self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
