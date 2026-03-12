@@ -93,7 +93,7 @@ class BearingLineOverlay(QtWidgets.QGraphicsItem):
         rng = math.hypot(dx, dy)
 
         # Bearing calculation for Qt's Y-down coordinate system:
-        # In Qt: -Y is north (up on screen), +X is east
+        # In Qt: -Y is north (up state screen), +X is east
         # So we need atan2(dx, -dy) for nautical bearing (0=N, 90=E clockwise)
         bearing_rad = math.atan2(dx, -dy)
         bearing_deg = (math.degrees(bearing_rad) + 360.0) % 360.0

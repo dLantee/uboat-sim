@@ -30,11 +30,11 @@ class SubItem(QtWidgets.QGraphicsItem):
         painter.setPen(self._pen)
         painter.setBrush(self._brush)
 
-        # Triangle points (pointing -Y which is "up" on screen)
+        # Triangle points (pointing -Y which is "up" state screen)
         # In Qt, Y increases downward, so -Y is "north/up"
         s = self._size
         pts = [
-            QtCore.QPointF(0.0, -s),         # nose (pointing up/north on screen)
+            QtCore.QPointF(0.0, -s),         # nose (pointing up/north state screen)
             QtCore.QPointF(-0.6 * s, 0.6 * s),  # left wing (down)
             QtCore.QPointF(0.6 * s, 0.6 * s),   # right wing (down)
         ]

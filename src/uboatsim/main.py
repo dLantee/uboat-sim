@@ -7,6 +7,8 @@ from uboatsim.sim.entity import Submarine, Ship
 from uboatsim.ui.main_window import MainWindow
 from uboatsim.utils.units import knots_to_mps, deg_to_rad
 
+from uboatsim.ui.tools.attackdisc import AttackDiscWidget
+
 
 def build_demo_world() -> World:
     """
@@ -55,15 +57,18 @@ def main() -> None:
     app = QtWidgets.QApplication([])
     app.setApplicationName("UBoatSim")
     app.setOrganizationName("uboatsim")
+    # world = build_demo_world()
+    # window = MainWindow(world=world)
+    # window.resize(1280, 800)
+    # window.show()
+    # # window.timer.timeout.connect(lambda: trigger_events(world))
+    # window.timer.start(16)
 
-    world = build_demo_world()
+    w = AttackDiscWidget()
+    w.setWindowTitle("Attack Disc (PySide6 prototype)")
+    w.resize(900, 900)
+    w.show()
 
-    window = MainWindow(world=world)
-    window.resize(1280, 800)
-    window.show()
-
-    # window.timer.timeout.connect(lambda: trigger_events(world))
-    window.timer.start(16)
 
     app.exec()
 
