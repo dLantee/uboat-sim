@@ -171,33 +171,42 @@ class TickRadialOverlay(RadialOverlay):
     """
     Simple tick marks at specified angles. Not a full ring, just individual ticks.
     """
-    def __init__(self, *, long_len: float, short_len: float,
+    def __init__(self, *, long_len: float, short_len: float, long_width_mult: float = 1.0,
                  long_every: int, reversed:bool=False,
                  **kwargs):
         super().__init__(**kwargs)
         self.long_len = long_len
         self.short_len = short_len
         self.long_every = long_every
+        self.long_width_mult = long_width_mult
+
         self.reversed = reversed
         # self.log_scale = False  # TODO: Add option for logarithmic tick spacing
 
     def paint(self, painter: QtGui.QPainter, option, widget=None) -> None:
         super().paint(painter, option, widget)
-        # painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
 
         # vmin = min(values)
         # vmax = max(values)
         # degrees = np.degree(2 * np.pi * (np.log(values) - np.log(vmin)) / (np.log(vmax) - np.log(vmin)))
 
+        pen = painter.pen()
+        pw = pen.widthF()
+
         for i, deg in enumerate(self.step_values):
             is_long = (i % self.long_every) == 0
             length = self.long_len if is_long else self.short_len
+            pen.setWidthF(pw * self.long_width_mult if is_long else pw)
+            painter.setPen(pen)
 
             p0 = polar_to_vec(self.radius , deg)
             p1 = polar_to_vec(self.radius + length , deg)
             if self.reversed:
                 p1 = polar_to_vec(self.radius - length , deg)
             painter.drawLine(p0, p1)
+
+        pen.setWidthF(pw)
+        painter.setPen(pen)
 
 
 class RotatableObjet(QtWidgets.QGraphicsObject):
@@ -452,6 +461,7 @@ class CompassRoseDisc(Disc):
             span_deg=360,
             long_every=5,
             long_len=55,
+            long_width_mult=1.5,
             short_len=35,
             include_end=False,
             pen_width=2.0,
@@ -479,6 +489,7 @@ class CompassRoseDisc(Disc):
             span_deg=360,
             long_every=5,
             long_len=20,
+            long_width_mult=1.5,
             short_len=7,
             include_end=False,
             pen_width=2.0,
@@ -592,6 +603,7 @@ class AngleOnBowDisc(Disc):
             span_deg=180,
             long_every=5,
             long_len=16,
+            long_width_mult=1.5,
             short_len=7,
             include_end=False,
             pen_width=2.0,
@@ -618,6 +630,7 @@ class AngleOnBowDisc(Disc):
             span_deg=180,
             long_every=5,
             long_len=16,
+            long_width_mult=1.5,
             short_len=7,
             include_end=False,
             pen_width=2.0,
